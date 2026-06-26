@@ -1,0 +1,22 @@
+=== BẮT ĐẦU MÔ PHỎNG KIỂM TRA HIỆU NĂNG 200 UEs ===
+[Giám sát 1s] Đã đăng ký: 200/200 | Đã về IDLE: 0/200 | Bị Paging đánh thức: 0/200 (+0)
+[Giám sát 2s] Đã đăng ký: 200/200 | Đã về IDLE: 188/200 | Bị Paging đánh thức: 0/200 (+0)
+[Giám sát 3s] Đã đăng ký: 200/200 | Đã về IDLE: 200/200 | Bị Paging đánh thức: 0/200 (+0)
+[Giám sát 4s] Đã đăng ký: 200/200 | Đã về IDLE: 200/200 | Bị Paging đánh thức: 0/200 (+0)
+[Giám sát 5s] Đã đăng ký: 200/200 | Đã về IDLE: 200/200 | Bị Paging đánh thức: 136/200 (+136)
+[Giám sát 6s] Đã đăng ký: 200/200 | Đã về IDLE: 200/200 | Bị Paging đánh thức: 195/200 (+59)
+[Giám sát 7s] Đã đăng ký: 200/200 | Đã về IDLE: 200/200 | Bị Paging đánh thức: 195/200 (+0)
+[Giám sát 8s] Đã đăng ký: 200/200 | Đã về IDLE: 200/200 | Bị Paging đánh thức: 195/200 (+0)
+[Giám sát 9s] Đã đăng ký: 200/200 | Đã về IDLE: 200/200 | Bị Paging đánh thức: 195/200 (+0)
+
+⚠️ Không có thêm Paging nào trong 3s. Dừng sớm để đo lường khách quan!
+
+=======================================================
+📊 BÁO CÁO KẾT QUẢ ĐÁNH GIÁ PAGING (THROUGHPUT KPI)
+=======================================================
+- Tổng số thiết bị đánh thức  : 195 UEs
+- Thời gian hoàn thành Paging : 1.29 giây
+- Tốc độ đáp ứng (Throughput) : 151.13 bản tin / giây
+⚠️ CẢNH BÁO: Hiệu năng chưa đạt yêu cầu 400-500 Paging/s.
+=======================================================
+
