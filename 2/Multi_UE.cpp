@@ -130,7 +130,7 @@ void run_ue_thread(uint64_t suci)
         if (state == 2)
         {
             int drx_offset = UE_sfn % 64;
-            if (drx_offset > 55 && tick_since_sync < RESYNC_TICKS)
+            if (drx_offset > 20 && tick_since_sync < RESYNC_TICKS)
             { // Mở rộng cửa sổ nghe để tránh Flush mất gói tin bị delay
                 uint8_t dummy[512];
                 while (recv(sock_fd, dummy, sizeof(dummy), 0) > 0)
@@ -250,8 +250,9 @@ int main(int argc, char *argv[])
     for (int i = 0; i < num_ues; i++)
     {
         uint64_t suci = 1000000 + i;
+        // [C12] Bỏ sleep_for(1ms): không cần stagger thread, 500 UE khởi động đồng loạt
+        // → giảm 500ms startup, tất cả UE sync gNodeB sớm hơn, paging đến cùng 1 window
         ue_threads.push_back(std::thread(run_ue_thread, suci));
-        std::this_thread::sleep_for(std::chrono::milliseconds(1)); // Giảm trễ tạo luồng để dồn cục Paging, đẩy Throughput lên cao
     }
 
     // BỘ GIÁM SÁT HIỆU NĂNG (Monitor Loop)

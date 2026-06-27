@@ -9,6 +9,7 @@
 #include <thread>
 #include <chrono>
 #include <atomic>
+#include <netinet/tcp.h>
 
 #define PORT_TCP 6000
 #define HOST "127.0.0.1"
@@ -97,10 +98,14 @@ int main()
     {
         sleep(1);
     }
+    // [C9] Tắt Nagle Algorithm: message 16-byte nhỏ sẽ không bị gom lại → giảm latency
+    int flag = 1;
+    setsockopt(sock_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
     printf("[AMF] Đã liên kết TCP với gNodeB.\n");
 
     ControlMsg msg;
-    while (recv(sock_fd, &msg, sizeof(msg), 0) > 0)
+    // [C4] MSG_WAITALL: block cho đến khi nhận đủ 16 byte, tránh partial read khi throughput cao
+    while (recv(sock_fd, &msg, sizeof(msg), MSG_WAITALL) == (ssize_t)sizeof(msg))
     {
         amf_msg_count++;
         if (msg.message_type == NGAP_INITIAL_UE_MSG)

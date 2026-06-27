@@ -8,9 +8,11 @@
 #include <chrono>
 #include <thread>
 #include <vector>
-#include <map>
+// [C10] Thay std::map bằng std::unordered_map → O(1) lookup thay vì O(log n)
+#include <unordered_map>
 #include <mutex>
 #include <atomic>
+#include <netinet/tcp.h>
 
 #define PORT_UDP 5000
 #define PORT_TCP 6000
@@ -65,12 +67,14 @@ typedef struct
 #pragma pack(pop)
 
 // Quản lý môi trường vô tuyến chung
-std::vector<struct sockaddr_in> air_interfaces;
+// [C7] unordered_map key=port(host order) → O(1) insert/delete/lookup, không cần linear scan
+std::unordered_map<uint16_t, struct sockaddr_in> air_interfaces;
 std::mutex air_mutex;
 
 // Quản lý trạng thái và Context của thiết bị đang kết nối
-std::map<uint64_t, struct sockaddr_in> context_by_suci;
-std::map<uint32_t, struct sockaddr_in> context_by_tmsi;
+// [C10] unordered_map: tra cứu SUCI/TMSI → địa chỉ UE với O(1) thay vì O(log N)
+std::unordered_map<uint64_t, struct sockaddr_in> context_by_suci;
+std::unordered_map<uint32_t, struct sockaddr_in> context_by_tmsi;
 std::mutex ctx_mutex;
 
 std::vector<PagingMsg> paging_queue;
@@ -122,6 +126,14 @@ void tcp_listener_thread()
         int client_fd = accept(server_fd, NULL, NULL);
         if (client_fd >= 0)
         {
+            // [C9] Tắt Nagle Algorithm: tránh gom gói 16-byte nhỏ gây tăng latency
+            int flag = 1;
+            setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+            // [C1] Tăng TCP buffer để không bị nghẽn khi burst nhiều NGAP message
+            int tcp_buf = 1024 * 1024 * 4; // 4 MB
+            setsockopt(client_fd, SOL_SOCKET, SO_SNDBUF, &tcp_buf, sizeof(tcp_buf));
+            setsockopt(client_fd, SOL_SOCKET, SO_RCVBUF, &tcp_buf, sizeof(tcp_buf));
+
             global_amf_fd = client_fd;
             char buffer[16];
             while (recv(client_fd, buffer, 16, MSG_WAITALL) == 16)
@@ -186,18 +198,9 @@ void udp_listener_thread()
         {
             if (bytes == 1 && buffer[0] == 0x02)
             {
+                // [C7] O(1) upsert: tự động ghi đè nếu port đã tồn tại (không cần linear scan)
                 std::lock_guard<std::mutex> lock(air_mutex);
-                bool exists = false;
-                for (auto &addr : air_interfaces)
-                {
-                    if (addr.sin_port == client_addr.sin_port)
-                    {
-                        exists = true;
-                        break;
-                    }
-                }
-                if (!exists)
-                    air_interfaces.push_back(client_addr);
+                air_interfaces[ntohs(client_addr.sin_port)] = client_addr;
             }
             else if (bytes >= sizeof(uint32_t))
             {
@@ -229,8 +232,11 @@ int main()
 {
     setbuf(stdout, NULL);
     sock_udp = socket(AF_INET, SOCK_DGRAM, 0);
-    int sndbuf = 1024 * 1024 * 10; // 10MB UDP Send Buffer
+    // [C1] Tăng cả Send và Receive buffer để tránh tràn khi 400-500 UE burst đồng thời
+    int sndbuf = 1024 * 1024 * 16; // 16MB UDP Send Buffer
+    int rcvbuf = 1024 * 1024 * 16; // 16MB UDP Receive Buffer
     setsockopt(sock_udp, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf));
+    setsockopt(sock_udp, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
@@ -278,14 +284,15 @@ int main()
 
                 {
                     std::lock_guard<std::mutex> u_lock(air_mutex);
-                    for (auto &addr : air_interfaces)
+                    // [C7] Range-based loop trên unordered_map
+                    for (auto &[port, addr] : air_interfaces)
                     {
                         sendto(sock_udp, &p_msg, sizeof(p_msg), 0, (struct sockaddr *)&addr, sizeof(addr));
                     }
                 }
                 gnb_msg_count++;
                 stat_rrc_paging_tx++;
-                usleep(20); // Tránh Burst quá mạnh gây tràn hàng đợi mạng của OS
+                // [C5] Đã xóa usleep(20): SO_SNDBUF 16MB đủ hấp thụ burst, không cần throttle thủ công
             }
         }
 
@@ -299,7 +306,8 @@ int main()
             ssb.sfn_lsb4 = gNodeB_sfn & 0x0F;
 
             std::lock_guard<std::mutex> u_lock(air_mutex);
-            for (auto &addr : air_interfaces)
+            // [C7] Iterate unordered_map
+            for (auto &[port, addr] : air_interfaces)
             {
                 sendto(sock_udp, &ssb, sizeof(ssb), 0, (struct sockaddr *)&addr, sizeof(addr));
             }
